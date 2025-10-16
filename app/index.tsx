@@ -1,10 +1,13 @@
-import { Text, View, StyleSheet, TouchableOpacity, Platform } from "react-native";
+import { Text, View, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from "react-native";
 import { useAuth, useUser } from '@clerk/clerk-expo'
-import { use, useCallback, useEffect } from "react";
+import { lazy, use, useCallback, useEffect, useState } from "react";
 import * as WebBrowser from 'expo-web-browser'
 import * as AuthSession from 'expo-auth-session'
 import { useSSO } from '@clerk/clerk-expo'
 import { router, useRouter } from "expo-router";
+import { firestoreDb } from "@/config/FirebaseConfig";
+import { doc, setDoc } from 'firebase/firestore';
+import React from "react";
 
 export const useWarmUpBrowser = () => {
   useEffect(() => {
@@ -23,12 +26,16 @@ export default function Index() {
   const { isSignedIn } = useAuth()
   const router = useRouter()
   const { user } = useUser()
+  const [loading, setLoading] = useState(true);
 
   console.log(user?.primaryEmailAddress?.emailAddress)
 
   useEffect(() => {
     if(isSignedIn){
       
+    }
+    if(isSignedIn!=undefined){
+      setLoading(false)
     }
   }, [isSignedIn]);
 
@@ -48,6 +55,16 @@ export default function Index() {
         redirectUrl: AuthSession.makeRedirectUri({ scheme: 'fruvia' }
         ),
       })
+      if(signUp){
+        await setDoc(doc(firestoreDb, 'users', signUp?.emailAddress??''), {
+          email: signUp.emailAddress,
+          name: signUp.firstName + " " + signUp.lastName,
+          joinedAt: Date.now(),
+          credits: 20
+        })
+      }
+
+
 
       // If sign in was successful, set the active session
       if (createdSessionId) {
@@ -87,10 +104,13 @@ export default function Index() {
       }}
     >
       <Text>Welcome to Fruvia</Text>
+      {!loading && 
       <TouchableOpacity style={styles.btn}
       onPress={onLoginPress}>
         <Text>Get Started</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> }
+      {loading==undefined && 
+      <ActivityIndicator size={"large"}/>}
     </View>
   );
 }

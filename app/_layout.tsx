@@ -1,6 +1,7 @@
 import { Stack } from "expo-router"; 
 import { tokenCache } from '@clerk/clerk-expo/token-cache'
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
+import React from "react";
 
 export default function RootLayout() {
 
