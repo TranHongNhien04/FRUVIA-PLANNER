@@ -32,7 +32,7 @@ export default function Index() {
 
   useEffect(() => {
     if(isSignedIn){
-      
+      router.replace('/(tabs)/Home')
     }
     if(isSignedIn!=undefined){
       setLoading(false)
