@@ -1,27 +1,51 @@
-import { firestoreDb } from '@/config/FirebaseConfig'
-import Colors from '@/shared/Colors'
 import { useUser } from '@clerk/clerk-expo'
-import { collection, onSnapshot } from 'firebase/firestore'
-import React, { useEffect, useState } from 'react'
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import React, { useEffect, useRef, useState } from 'react'
+import { Animated, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import Svg, { Circle } from 'react-native-svg'
 
-type Task = {
-  id?: string;
-  projectId: string;
-  title: string;
-  description: string;
-  assignedTo: string;
-  status: 'todo' | 'in-progress' | 'completed';
-  createdAt: number;
+// Circular Progress Component
+const CircularProgress = ({ percentage, size = 80, strokeWidth = 3, color = '#FFFFFF' }) => {
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference - (percentage / 100) * circumference
+
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+        {/* Background circle */}
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="rgba(255, 255, 255, 0.3)"
+          strokeWidth={strokeWidth}
+          fill="none"
+        />
+        {/* Progress circle */}
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+        />
+      </Svg>
+      <Text style={[styles.projectPercentage, { position: 'absolute' }]}>{percentage}%</Text>
+    </View>
+  )
 }
 
 export default function Home() {
   const { user } = useUser()
   const [userName, setUserName] = useState('User')
   const [userImage, setUserImage] = useState<string | null>(null)
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [loading, setLoading] = useState(true)
+  const scrollY = useRef(new Animated.Value(0)).current /*  là một giá trị animated theo dõi vị trí scroll */
 
   useEffect(() => {
     if (user) {
@@ -33,101 +57,152 @@ export default function Home() {
     }
   }, [user])
 
-  // Fetch tasks from Firebase
-  useEffect(() => {
-    if (!user) {
-      setLoading(false)
-      return
-    }
+  // Calculate header height based on scroll
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [200, 60],
+    extrapolate: 'clamp',
+  })
 
-    try {
-      const tasksCollection = collection(firestoreDb, 'tasks')
-      const unsubscribe = onSnapshot(tasksCollection, (snapshot) => {
-        const taskList: Task[] = []
-        snapshot.forEach((doc) => {
-          const taskData = doc.data() as Task
-          taskList.push({
-            id: doc.id,
-            ...taskData
-          })
-        })
-        // Filter tasks with 'todo' status
-        const todoTasks = taskList.filter(task => task.status === 'todo')
-        setTasks(todoTasks)
-        setLoading(false)
-      }, (error) => {
-        console.error('Error fetching tasks:', error)
-        setLoading(false)
-      })
+  const profileOpacity = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  })
 
-      return () => unsubscribe()
-    } catch (error) {
-      console.error('Error setting up tasks listener:', error)
-      setLoading(false)
-    }
-  }, [user])
+  const avatarSize = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [160, 60],
+    extrapolate: 'clamp',
+  })
+
+  const avatarRingSize = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [170, 70],
+    extrapolate: 'clamp',
+  })
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <ScrollView
+      <Animated.View style={[styles.headerSection, { height: headerHeight }]}>
+
+        <Animated.View style={[styles.avatarContainer, { width: avatarRingSize, height: avatarRingSize }]}>
+          <Animated.View style={[styles.avatarRing, { width: avatarRingSize, height: avatarRingSize, borderRadius: avatarRingSize }]}>
+            {userImage ? (
+              <Animated.Image
+                source={{ uri: userImage }}
+                style={[styles.userImage, { width: avatarSize, height: avatarSize, borderRadius: avatarSize }]}
+              />
+            ) : (
+              <Animated.View style={[styles.userImagePlaceholder, { width: avatarSize, height: avatarSize, borderRadius: avatarSize }]}>
+                <Text style={styles.placeholderText}>
+                  {userName.charAt(0).toUpperCase()}
+                </Text>
+              </Animated.View>
+            )}
+          </Animated.View>
+        </Animated.View>
+
+        {/* Profile Info - Fade in/out */}
+        <Animated.View style={[styles.profileInfo, { opacity: profileOpacity }]}>
+          <Text style={styles.userName}>Hello {userName}</Text>
+        </Animated.View>
+      </Animated.View>
+
+      {/* Scrollable Content */}
+      <Animated.ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={32}
+        decelerationRate="fast"
       >
-        <View style={styles.headerSection}>
-          <View style={styles.headerContent}>
-            <View style={styles.imageContainer}>
-              {/* Avatar ring */}
-              <View style={styles.avatarRing}>
-                {userImage ? (
-                  <Image
-                    source={{ uri: userImage }}
-                    style={styles.userImage}
-                  />
-                ) : (
-                  <View style={styles.userImagePlaceholder}>
-                    <Text style={styles.placeholderText}>
-                      {userName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
+
+        {/* My Tasks Section */}
+        <View style={styles.contentSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Daily Task</Text>
+            {/* <View style={styles.calendarIcon}>
+              <Ionicons name="calendar" size={24} color="#FFFFFF" />
+            </View> */}
+          </View>
+
+          <View style={styles.taskStatsContainer}>
+            {/* To Do */}
+            <View style={styles.taskStatCard}>
+              <View style={[styles.statCircle, { backgroundColor: '#E85D75' }]}>
+                <Ionicons name="checkmark-circle" size={28} color="#FFFFFF" />
+              </View>
+              <View style={styles.statInfo}>
+                <Text style={styles.statTitle}>To Do</Text>
+                <Text style={styles.statCount}>5 tasks now. 1 started</Text>
               </View>
             </View>
 
-            <View style={styles.greetingContainer}>
-              <Text style={styles.greetingText}>Hello {userName}</Text>
+            {/* In Progress */}
+            <View style={styles.taskStatCard}>
+              <View style={[styles.statCircle, { backgroundColor: '#F5A962' }]}>
+                <Ionicons name="radio-button-off" size={28} color="#FFFFFF" />
+              </View>
+              <View style={styles.statInfo}>
+                <Text style={styles.statTitle}>In Progress</Text>
+                <Text style={styles.statCount}>1 tasks now. 1 started</Text>
+              </View>
+            </View>
+
+            {/* Done */}
+            <View style={styles.taskStatCard}>
+              <View style={[styles.statCircle, { backgroundColor: '#4A90E2' }]}>
+                <Ionicons name="checkmark-done-circle" size={28} color="#FFFFFF" />
+              </View>
+              <View style={styles.statInfo}>
+                <Text style={styles.statTitle}>Done</Text>
+                <Text style={styles.statCount}>18 tasks now. 13 started</Text>
+              </View>
             </View>
           </View>
         </View>
-        <View style={styles.contentSection}>
-          <Text style={styles.sectionTitle}>
-            {tasks.length > 0 ? 'Công việc hôm nay' : 'Không có công việc cho hôm nay'}
-          </Text>
 
-          {tasks.length > 0 && (
-            <View style={styles.tasksContainer}>
-              {tasks.map((task) => (
-                <View key={task.id} style={styles.taskCard}>
-                  <View style={styles.taskHeader}>
-                    <Text style={styles.taskTitle}>{task.title}</Text>
-                    <View style={[
-                      styles.statusBadge,
-                      task.status === 'todo' && styles.statusTodo,
-                      task.status === 'in-progress' && styles.statusInProgress,
-                      task.status === 'completed' && styles.statusCompleted
-                    ]}>
-                      <Text style={styles.statusText}>
-                        {task.status === 'todo' ? 'Chưa làm' :
-                         task.status === 'in-progress' ? 'Đang làm' : 'Hoàn thành'}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.taskDescription}>{task.description}</Text>
-                </View>
-              ))}
+        {/* Active Projects Section */}
+        <View style={styles.projectsSection}>
+          <Text style={styles.sectionTitle}>Active Projects</Text>
+
+          <View style={styles.projectsGrid}>
+            {/* Project 1 */}
+            <View style={[styles.projectCard, { backgroundColor: '#228B22' }]}>
+              <CircularProgress percentage={25} size={80} strokeWidth={3} color="#FFFFFF" />
+              <Text style={styles.projectName}>Bài tập lớn</Text>
+              <Text style={styles.projectHours}>9 hours progress</Text>
             </View>
-          )}
+
+            {/* Project 2 */}
+            <View style={[styles.projectCard, { backgroundColor: '#E85D75' }]}>
+              <CircularProgress percentage={60} size={80} strokeWidth={3} color="#FFFFFF" />
+              <Text style={styles.projectName}>Making History Notes</Text>
+              <Text style={styles.projectHours}>20 hours progress</Text>
+            </View>
+          </View>
+
+          <View style={styles.projectsGrid}>
+            {/* Project 3 */}
+            <View style={[styles.projectCard, { backgroundColor: '#4A90E2' }]}>
+              <CircularProgress percentage={45} size={80} strokeWidth={3} color="#FFFFFF" />
+              <Text style={styles.projectName}>Mobile App</Text>
+              <Text style={styles.projectHours}>15 hours progress</Text>
+            </View>
+
+            {/* Project 4 */}
+            <View style={[styles.projectCard, { backgroundColor: '#F5A962' }]}>
+              <CircularProgress percentage={80} size={80} strokeWidth={3} color="#FFFFFF" />
+              <Text style={styles.projectName}>Web Design</Text>
+              <Text style={styles.projectHours}>32 hours progress</Text>
+            </View>
+          </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   )
 }
@@ -135,142 +210,167 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.BACKGROUND,
+    backgroundColor: '#F5F5F5',
+    flexDirection: 'column',
   },
   scrollView: {
     flex: 1,
   },
   headerSection: {
-    height: '33%',
-    backgroundColor: Colors.XANHLA,
-    justifyContent: 'center',
+    backgroundColor: '#69bc66ff',
     paddingHorizontal: 20,
     paddingVertical: 20,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 15,
+    zIndex: 100,
   },
-  headerContent: {
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
+    gap: 15,
   },
-  imageContainer: {
-    flex: 0.35,
+  avatarContainer: {
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarRing: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderWidth: 4,
+    borderColor: '#a1c4a3ff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   userImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 0,
+    backgroundColor: '#E8E8E8',
   },
   userImagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: '#E8E8E8',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 0,
   },
   placeholderText: {
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: 'bold',
-    color: Colors.XANHLA,
+    color: '#228B22',
   },
-  greetingContainer: {
-    flex: 0.65,
+  profileInfo: {
     justifyContent: 'center',
-    
-  },
-  greetingText: {
-    fontSize: 25,
-    color: Colors.BACKGROUND,
-    fontWeight: '500',
-    marginBottom: 5,
   },
   userName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.PRIMARY,
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 2,
   },
-  subText: {
+  userRole: {
     fontSize: 14,
-    color: Colors.TAB_INACTIVE,
-    fontStyle: 'italic',
+    color: '#666666',
   },
   contentSection: {
     padding: 20,
-    minHeight: 400,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.PRIMARY,
-    marginBottom: 15,
-  },
-  tasksContainer: {
-    gap: 12,
-  },
-  taskCard: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    padding: 15,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.XANHLA,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  taskHeader: {
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 15,
   },
-  taskTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.PRIMARY,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  calendarIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#228B22',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  taskStatsContainer: {
+    gap: 12,
+  },
+  taskStatCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  statCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  statInfo: {
     flex: 1,
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 10,
-  },
-  statusTodo: {
-    backgroundColor: '#FFE5B4',
-  },
-  statusInProgress: {
-    backgroundColor: '#B4D7FF',
-  },
-  statusCompleted: {
-    backgroundColor: '#B4FFB4',
-  },
-  statusText: {
-    fontSize: 12,
+  statTitle: {
+    fontSize: 16,
     fontWeight: '600',
-    color: Colors.PRIMARY,
+    color: '#1A1A1A',
+    marginBottom: 2,
   },
-  taskDescription: {
-    fontSize: 14,
-    color: Colors.CONTENT,
-    lineHeight: 20,
+  statCount: {
+    fontSize: 13,
+    color: '#999999',
+  },
+  projectsSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
+  projectsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 15,
+  },
+  projectCard: {
+    flex: 1,
+    borderRadius: 20,
+    padding: 20,
+    justifyContent: 'space-between',
+    minHeight: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  projectPercentage: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  projectName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  projectHours: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 })
