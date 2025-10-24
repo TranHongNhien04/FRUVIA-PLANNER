@@ -4,5 +4,6 @@ export default{
   //Thanh menu tab
   BACKGROUND: '#FFFFFF',
   TAB_ACTIVE: '#8BC34A',
-  TAB_INACTIVE: '#424242'
+  TAB_INACTIVE: '#424242',
+  XANHLA: '#228B22'
 }
