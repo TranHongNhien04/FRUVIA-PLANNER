@@ -26,7 +26,12 @@ export default function Index() {
   const { user } = useUser()
   const [loading, setLoading] = useState(true);
 
-  console.log(user?.primaryEmailAddress?.emailAddress)
+  // Only log when user is loaded
+  useEffect(() => {
+    if (user?.primaryEmailAddress?.emailAddress) {
+      console.log('User email:', user.primaryEmailAddress.emailAddress);
+    }
+  }, [user]);
 
   useEffect(() => {
     const init = async () => {
@@ -52,31 +57,30 @@ export default function Index() {
   const { startSSOFlow } = useSSO()
 
   const onLoginPress = useCallback(async () => {
-  try {
-    const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'fruvia' });
-    console.log("Redirect URI:", redirectUrl);
-    const { createdSessionId, setActive, signUp } = await startSSOFlow({
-      strategy: 'oauth_google',
-      redirectUrl,
-    });
-
-    if (signUp?.emailAddress) {
-      await setDoc(doc(firestoreDb, 'users', signUp.emailAddress), {
-        email: signUp.emailAddress,
-        name: `${signUp.firstName ?? ''} ${signUp.lastName ?? ''}`,
-        joinedAt: Date.now(),
-        credits: 20,
+    try {
+      const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'fruvia' });
+      const { createdSessionId, setActive, signUp } = await startSSOFlow({
+        strategy: 'oauth_google',
+        redirectUrl,
       });
-    }
 
-    if (createdSessionId && setActive) {
-      await setActive({ session: createdSessionId });
-      router.replace('/(tabs)/Home');
+      if (signUp?.emailAddress) {
+        await setDoc(doc(firestoreDb, 'users', signUp.emailAddress), {
+          email: signUp.emailAddress,
+          name: `${signUp.firstName ?? ''} ${signUp.lastName ?? ''}`,
+          joinedAt: Date.now(),
+          credits: 20,
+        });
+      }
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+        router.replace('/(tabs)/Home');
+      }
+    } catch (err) {
+      console.error('Lỗi khi đăng nhập Google:', err);
     }
-  } catch (err) {
-    console.error('Lỗi khi đăng nhập Google:', err);
-  }
-}, []);
+  }, [startSSOFlow, router]);
 
 
 
