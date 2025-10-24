@@ -1,18 +1,17 @@
-import { Stack } from "expo-router"; 
-import { tokenCache } from '@clerk/clerk-expo/token-cache'
-import { ClerkProvider, useAuth } from '@clerk/clerk-expo'
+import { ClerkProvider } from '@clerk/clerk-expo';
+import { tokenCache } from '@clerk/clerk-expo/token-cache';
+import { Slot } from "expo-router";
 import React from "react";
 
+const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
 export default function RootLayout() {
-
-
   return (
-    <ClerkProvider tokenCache={tokenCache}>
-    <Stack screenOptions={{
-          headerShown: false
-          }}> 
-      <Stack.Screen name="index"/>
-    </Stack>
+    <ClerkProvider 
+      publishableKey={CLERK_PUBLISHABLE_KEY ?? ''}
+      tokenCache={tokenCache}
+    >
+      <Slot />
     </ClerkProvider>
   );
 }
