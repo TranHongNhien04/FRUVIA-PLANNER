@@ -1,7 +1,7 @@
 import { useUser } from '@clerk/clerk-expo'
 import { Ionicons } from '@expo/vector-icons'
-import React, { useEffect, useRef, useState } from 'react'
-import { Animated, StyleSheet, Text, View } from 'react-native'
+import React, { useEffect, useState } from 'react'
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Svg, { Circle } from 'react-native-svg'
 
@@ -45,7 +45,6 @@ export default function Home() {
   const { user } = useUser()
   const [userName, setUserName] = useState('User')
   const [userImage, setUserImage] = useState<string | null>(null)
-  const scrollY = useRef(new Animated.Value(0)).current /*  là một giá trị animated theo dõi vị trí scroll */
 
   useEffect(() => {
     if (user) {
@@ -57,68 +56,39 @@ export default function Home() {
     }
   }, [user])
 
-  // Calculate header height based on scroll
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [200, 60],
-    extrapolate: 'clamp',
-  })
 
-  const profileOpacity = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  })
-
-  const avatarSize = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [160, 60],
-    extrapolate: 'clamp',
-  })
-
-  const avatarRingSize = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [170, 70],
-    extrapolate: 'clamp',
-  })
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <Animated.View style={[styles.headerSection, { height: headerHeight }]}>
+      <View style={styles.headerSection}>
 
-        <Animated.View style={[styles.avatarContainer, { width: avatarRingSize, height: avatarRingSize }]}>
-          <Animated.View style={[styles.avatarRing, { width: avatarRingSize, height: avatarRingSize, borderRadius: avatarRingSize }]}>
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatarRing}>
             {userImage ? (
-              <Animated.Image
+              <Image
                 source={{ uri: userImage }}
-                style={[styles.userImage, { width: avatarSize, height: avatarSize, borderRadius: avatarSize }]}
+                style={styles.userImage}
               />
             ) : (
-              <Animated.View style={[styles.userImagePlaceholder, { width: avatarSize, height: avatarSize, borderRadius: avatarSize }]}>
+              <View style={styles.userImagePlaceholder}>
                 <Text style={styles.placeholderText}>
                   {userName.charAt(0).toUpperCase()}
                 </Text>
-              </Animated.View>
+              </View>
             )}
-          </Animated.View>
-        </Animated.View>
+          </View>
+        </View>
 
-        {/* Profile Info - Fade in/out */}
-        <Animated.View style={[styles.profileInfo, { opacity: profileOpacity }]}>
+        {/* Profile Info */}
+        <View style={styles.profileInfo}>
           <Text style={styles.userName}>Hello {userName}</Text>
-        </Animated.View>
-      </Animated.View>
+        </View>
+      </View>
 
       {/* Scrollable Content */}
-      <Animated.ScrollView
+      <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={32}
-        decelerationRate="fast"
       >
 
         {/* My Tasks Section */}
@@ -202,7 +172,7 @@ export default function Home() {
             </View>
           </View>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
     </SafeAreaView>
   )
 }
@@ -242,6 +212,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarRing: {
+    height: 130,
+    width: 130,
+    borderRadius:70,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -254,9 +227,15 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   userImage: {
+    height: 120,
+    width: 120,
+    borderRadius:70,
     backgroundColor: '#E8E8E8',
   },
   userImagePlaceholder: {
+    height: 120,
+    width: 120,
+    borderRadius:70,
     backgroundColor: '#E8E8E8',
     justifyContent: 'center',
     alignItems: 'center',
