@@ -1,13 +1,11 @@
-import { Text, View, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from "react-native";
-import { useAuth, useUser } from '@clerk/clerk-expo'
-import { lazy, use, useCallback, useEffect, useState } from "react";
-import * as WebBrowser from 'expo-web-browser'
-import * as AuthSession from 'expo-auth-session'
-import { useSSO } from '@clerk/clerk-expo'
-import { router, useRouter } from "expo-router";
 import { firestoreDb } from "@/config/FirebaseConfig";
+import { useAuth, useSSO, useUser } from '@clerk/clerk-expo';
+import * as AuthSession from 'expo-auth-session';
+import { useRouter } from "expo-router";
+import * as WebBrowser from 'expo-web-browser';
 import { doc, setDoc } from 'firebase/firestore';
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export const useWarmUpBrowser = () => {
   useEffect(() => {
@@ -45,54 +43,31 @@ export default function Index() {
   const { startSSOFlow } = useSSO()
 
   const onLoginPress = useCallback(async () => {
-    try {
-      // Start the authentication process by calling `startSSOFlow()`
-      const { createdSessionId, setActive, signIn, signUp } = await startSSOFlow({
-        strategy: 'oauth_google',
-        // For web, defaults to current path
-        // For native, you must pass a scheme, like AuthSession.makeRedirectUri({ scheme, path })
-        // For more info, see https://docs.expo.dev/versions/latest/sdk/auth-session/#authsessionmakeredirecturioptions
-        redirectUrl: AuthSession.makeRedirectUri({ scheme: 'fruvia' }
-        ),
-      })
-      if(signUp){
-        await setDoc(doc(firestoreDb, 'users', signUp?.emailAddress??''), {
-          email: signUp.emailAddress,
-          name: signUp.firstName + " " + signUp.lastName,
-          joinedAt: Date.now(),
-          credits: 20
-        })
-      }
+  try {
+    console.log("Redirect URI:", AuthSession.makeRedirectUri({ useProxy: true }));
+    const { createdSessionId, setActive, signUp } = await startSSOFlow({
+      strategy: 'oauth_google',
+      redirectUrl: AuthSession.makeRedirectUri({ useProxy: true }),
+    });
 
-
-
-      // If sign in was successful, set the active session
-      if (createdSessionId) {
-        setActive!({
-          session: createdSessionId,
-          // Check for session tasks and navigate to custom UI to help users resolve them
-          // See https://clerk.com/docs/guides/development/custom-flows/overview#session-tasks
-          navigate: async ({ session }) => {
-            if (session?.currentTask) {
-              console.log(session?.currentTask)
-              return
-            }
-
-            router.push('/')
-          },
-        })
-      } else {
-        // If there is no `createdSessionId`,
-        // there are missing requirements, such as MFA
-        // See https://clerk.com/docs/guides/development/custom-flows/authentication/oauth-connections#handle-missing-requirements
-      }
-    } catch (err) {
-      // See https://clerk.com/docs/guides/development/custom-flows/error-handling
-      // for more info on error handling
-      console.error('Lỗi khi đăng nhập Google:', err); 
-      console.error(JSON.stringify(err, null, 2))
+    if (signUp?.emailAddress) {
+      await setDoc(doc(firestoreDb, 'users', signUp.emailAddress), {
+        email: signUp.emailAddress,
+        name: `${signUp.firstName ?? ''} ${signUp.lastName ?? ''}`,
+        joinedAt: Date.now(),
+        credits: 20,
+      });
     }
-  }, [])
+
+    if (createdSessionId && setActive) {
+      await setActive({ session: createdSessionId });
+      router.replace('/(tabs)/Home');
+    }
+  } catch (err) {
+    console.error('Lỗi khi đăng nhập Google:', err);
+  }
+}, []);
+
 
 
   return (
