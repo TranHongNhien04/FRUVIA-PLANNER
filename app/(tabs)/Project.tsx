@@ -1,9 +1,10 @@
 import { firestoreDb } from '@/config/FirebaseConfig'
 import { useUser } from '@clerk/clerk-expo'
 import { Ionicons } from '@expo/vector-icons'
-import { addDoc, collection, onSnapshot, query } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Animated, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 
 type Task = {
   id?: string;
@@ -109,6 +110,60 @@ export default function Project() {
     }
   }, [user, projects]);
 
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      // Delete all tasks associated with the project
+      const projectTasks = projectTasks[projectId] || [];
+      await Promise.all(
+        projectTasks.map(task => 
+          deleteDoc(doc(firestoreDb, 'tasks', task.id!))
+        )
+      );
+
+      // Delete the project
+      await deleteDoc(doc(firestoreDb, 'projects', projectId));
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      Alert.alert('Error', 'Failed to delete project');
+    }
+  };
+
+  const renderRightActions = (
+    progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>,
+    projectId: string
+  ) => {
+    const scale = dragX.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => {
+          Alert.alert(
+            'Delete Project',
+            'Are you sure you want to delete this project? All tasks will be deleted too.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Delete', 
+                style: 'destructive',
+                onPress: () => handleDeleteProject(projectId)
+              }
+            ]
+          );
+        }}
+      >
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <Ionicons name="trash-outline" size={24} color="#fff" />
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  };
+
   const handleCreateProject = async () => {
     if (!user || !newProject.title || !newProject.description) return
 
@@ -156,29 +211,38 @@ export default function Project() {
           <Text style={styles.emptySubText}>Tap + to create your first project</Text>
         </View>
       ) : (
-        <ScrollView style={styles.projectList}>
-          {projects.map((project) => (
-            <TouchableOpacity 
-              key={project.id} 
-              style={styles.projectCard}
-              onPress={() => {/* TODO: Navigate to project detail */}}
-            >
-              <View style={styles.projectHeader}>
-                <Text style={styles.projectTitle}>{project.title}</Text>
-                <Text style={styles.taskCount}>
-                  {projectTasks[project.id!]?.length || 0} tasks
-                </Text>
-              </View>
-              <Text style={styles.projectDescription}>{project.description}</Text>
-              <View style={styles.projectFooter}>
-                <Text style={styles.memberCount}>{project.members.length} members</Text>
-                <Text style={styles.projectDate}>
-                  {new Date(project.createdAt).toLocaleDateString()}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <ScrollView style={styles.projectList}>
+            {projects.map((project) => (
+              <Swipeable
+                key={project.id}
+                renderRightActions={(progress, dragX) => 
+                  renderRightActions(progress, dragX, project.id!)
+                }
+              >
+                <View style={styles.projectCard}>
+                  <TouchableOpacity 
+                    onPress={() => {/* TODO: Navigate to project detail */}}
+                  >
+                    <View style={styles.projectHeader}>
+                      <Text style={styles.projectTitle}>{project.title}</Text>
+                      <Text style={styles.taskCount}>
+                        {projectTasks[project.id!]?.length || 0} tasks
+                      </Text>
+                    </View>
+                    <Text style={styles.projectDescription}>{project.description}</Text>
+                    <View style={styles.projectFooter}>
+                      <Text style={styles.memberCount}>{project.members.length} members</Text>
+                      <Text style={styles.projectDate}>
+                        {new Date(project.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </Swipeable>
+            ))}
+          </ScrollView>
+        </GestureHandlerRootView>
       )}
 
       {/* Add Project Modal */}
@@ -230,6 +294,13 @@ export default function Project() {
 }
 
 const styles = StyleSheet.create({
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    height: '100%',
+  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
