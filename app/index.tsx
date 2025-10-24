@@ -29,13 +29,22 @@ export default function Index() {
   console.log(user?.primaryEmailAddress?.emailAddress)
 
   useEffect(() => {
-    if(isSignedIn){
-      router.replace('/(tabs)/Home')
-    }
-    if(isSignedIn!=undefined){
-      setLoading(false)
-    }
-  }, [isSignedIn]);
+    const init = async () => {
+      try {
+        if (isSignedIn === true) {
+          await router.replace('/(tabs)/Home');
+        }
+      } catch (error) {
+        console.error('Navigation error:', error);
+      } finally {
+        if (isSignedIn !== undefined) {
+          setLoading(false);
+        }
+      }
+    };
+
+    init();
+  }, [isSignedIn, router]);
 
    useWarmUpBrowser()
 
@@ -44,10 +53,11 @@ export default function Index() {
 
   const onLoginPress = useCallback(async () => {
   try {
-    console.log("Redirect URI:", AuthSession.makeRedirectUri({ useProxy: true }));
+    const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'fruvia' });
+    console.log("Redirect URI:", redirectUrl);
     const { createdSessionId, setActive, signUp } = await startSSOFlow({
       strategy: 'oauth_google',
-      redirectUrl: AuthSession.makeRedirectUri({ useProxy: true }),
+      redirectUrl,
     });
 
     if (signUp?.emailAddress) {
