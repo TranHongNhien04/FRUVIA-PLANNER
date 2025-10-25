@@ -1,15 +1,15 @@
-import { firestoreDb } from '@/config/FirebaseConfig'
-import { useUser } from '@clerk/clerk-expo'
-import { collection, onSnapshot, query, where } from 'firebase/firestore'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native'
+import { useUser } from '@clerk/clerk-expo'
+import { firestoreDb } from '@/config/FirebaseConfig'
+import { collection, onSnapshot, query, where } from 'firebase/firestore'
 import { router } from 'expo-router'
 
 type Task = {
@@ -36,15 +36,15 @@ function formatDateKey(d: Date) {
   return `${yyyy}-${mm}-${dd}`
 }
 
-function getMillisFromCreatedAt(createdAt: any) {
-  if (!createdAt) return Date.now()
+function getMillisFromDateField(field: any) {
+  if (!field) return Date.now()
   // Firestore Timestamp
-  if (typeof createdAt === 'object' && typeof createdAt.toDate === 'function') {
-    return createdAt.toDate().getTime()
+  if (typeof field === 'object' && typeof field.toDate === 'function') {
+    return field.toDate().getTime()
   }
-  if (typeof createdAt === 'number') return createdAt
-  // fallback
-  const parsed = Date.parse(String(createdAt))
+  if (typeof field === 'number') return field
+  // fallback parse string
+  const parsed = Date.parse(String(field))
   return Number.isNaN(parsed) ? Date.now() : parsed
 }
 
@@ -70,7 +70,9 @@ export default function Calendar() {
           const grouped: Record<string, Task[]> = {}
           snapshot.forEach((doc) => {
             const data = doc.data() as Task
-            const millis = getMillisFromCreatedAt(data.createdAt)
+            // Prefer scheduledAt for calendar grouping; fall back to createdAt
+            const primary = (data as any).scheduledAt ?? (data as any).createdAt
+            const millis = getMillisFromDateField(primary)
             const key = formatDateKey(new Date(millis))
             if (!grouped[key]) grouped[key] = []
             grouped[key].push({ id: doc.id, ...data })
@@ -108,12 +110,22 @@ export default function Calendar() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Ngày hôm nay</Text>
-        <Text style={styles.subTitle}>Công việc của bạn</Text>
+        <View>
+          <Text style={styles.title}>Ngày hôm nay</Text>
+          <Text style={styles.subTitle}>Công việc của bạn</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => router.push(`/(tabs)/addtask?date=${selectedDateKey}`)}
+        >
+          <Text style={styles.addButtonText}>+ Thêm task</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.monthBar}>
-        <Text style={styles.monthText}>{new Date(selectedDateKey).toLocaleString(undefined, { month: 'long', year: 'numeric' })}</Text>
+        <Text style={styles.monthText}>
+          {new Date(selectedDateKey).toLocaleString(undefined, { month: 'long', year: 'numeric' })}
+        </Text>
       </View>
 
       <View style={styles.weekRow}>
@@ -140,7 +152,7 @@ export default function Calendar() {
           <ActivityIndicator size="large" color="#228B22" />
         ) : tasksForSelected.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No tasks for this day</Text>
+            <Text style={styles.emptyText}>Không có task cho ngày này</Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 15 }}>
@@ -148,6 +160,9 @@ export default function Calendar() {
               <View key={task.id} style={[styles.taskCard, { backgroundColor: statusColors[task.status] || '#eee' }]}>
                 <Text style={styles.taskTitle}>{task.title}</Text>
                 {task.description ? <Text style={styles.taskDesc}>{task.description}</Text> : null}
+                <View style={styles.taskFooter}>
+                  <Text style={styles.categoryTag}>{task.category}</Text>
+                </View>
               </View>
             ))}
           </ScrollView>
@@ -158,13 +173,51 @@ export default function Calendar() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 10, backgroundColor: '#fff' },
-  title: { fontSize: 28, fontWeight: '700', color: '#111' },
-  subTitle: { color: '#666', marginTop: 4 },
-  monthBar: { paddingHorizontal: 20, paddingVertical: 8 },
-  monthText: { fontSize: 16, fontWeight: '600', color: '#333' },
-  weekRow: { height: 90, paddingVertical: 10 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#fff' 
+  },
+  header: { 
+    paddingTop: 60, 
+    paddingHorizontal: 20, 
+    paddingBottom: 10, 
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  addButton: {
+    backgroundColor: '#228B22',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  title: { 
+    fontSize: 28, 
+    fontWeight: '700', 
+    color: '#111' 
+  },
+  subTitle: { 
+    color: '#666', 
+    marginTop: 4 
+  },
+  monthBar: { 
+    paddingHorizontal: 20, 
+    paddingVertical: 8 
+  },
+  monthText: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: '#333' 
+  },
+  weekRow: { 
+    height: 90, 
+    paddingVertical: 10 
+  },
   dayButton: {
     width: 70,
     height: 70,
@@ -174,12 +227,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  dayButtonSelected: { backgroundColor: '#228B22' },
-  dayName: { fontSize: 12, color: '#666' },
-  dayNumber: { fontSize: 18, fontWeight: '700', color: '#111' },
-  listContainer: { flex: 1 },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: '#999' },
+  dayButtonSelected: { 
+    backgroundColor: '#228B22' 
+  },
+  dayName: { 
+    fontSize: 12, 
+    color: '#666' 
+  },
+  dayNumber: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#111' 
+  },
+  listContainer: { 
+    flex: 1 
+  },
+  emptyContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  emptyText: { 
+    color: '#999' 
+  },
   taskCard: {
     borderRadius: 14,
     padding: 16,
@@ -189,7 +259,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
   },
-  taskTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
-  taskDesc: { color: '#444' },
+  taskTitle: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    marginBottom: 6 
+  },
+  taskDesc: { 
+    color: '#444',
+    marginBottom: 8 
+  },
+  taskFooter: {
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+  categoryTag: {
+    fontSize: 12,
+    color: '#666',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  }
 })
-
