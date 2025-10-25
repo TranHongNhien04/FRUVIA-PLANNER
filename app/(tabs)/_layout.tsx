@@ -57,6 +57,13 @@ export default function TabLayout() {
           )
         }}
       />
+      <Tabs.Screen 
+        name="addtask" 
+        options={{
+          href: null, // This removes it from the tab bar
+          headerShown: false
+        }}
+      />
     </Tabs>
   )
 }
